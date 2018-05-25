@@ -11,9 +11,9 @@
 //
 // TODO:Student Information
 //
-const char *studentName = "NAME";
-const char *studentID   = "PID";
-const char *email       = "EMAIL";
+const char *studentName = "Wenyu Zhang";
+const char *studentID   = "A53238371";
+const char *email       = "wez078@ucsd.edu";
 
 //------------------------------------//
 //        Cache Configuration         //
@@ -57,6 +57,7 @@ uint64_t l2cachePenalties; // L2$ penalties
 
 //
 //TODO: Add your Cache data structures here
+
 //
 
 //------------------------------------//
