@@ -57,6 +57,12 @@ uint64_t l2cachePenalties; // L2$ penalties
 
 //
 //TODO: Add your Cache data structures here
+struct cacheUnit{
+  uint32_t tag;                                      //tag of certain block
+  bool occupy;                                       //if the position is occupied by a block
+  uint32_t priority;                                 //the priority of this block in the set
+  cacheUnit(): tag(0), occupy(false), priority(0){}
+};
 
 //
 
@@ -83,6 +89,9 @@ init_cache()
   //
   //TODO: Initialize Cache Simulator Data Structures
   //
+  cacheUnit iCache[icacheSets][icacheAssoc];
+  cacheUnit dCache[dcacheSets][dcacheAssoc];
+  cacheUnit l2Cache[l2cacheSets][l2cacheAssoc];
 }
 
 // Perform a memory access through the icache interface for the address 'addr'
