@@ -11,9 +11,9 @@
 //
 // TODO:Student Information
 //
-const char *studentName = "Wenyu Zhang";
-const char *studentID   = "A53238371";
-const char *email       = "wez078@ucsd.edu";
+const char *studentName = "Wenyu Zhang, Ge Chang";
+const char *studentID   = "A53238371, A53240181";
+const char *email       = "wez078@ucsd.edu, chg073@eng.ucsd.edu";
 
 //------------------------------------//
 //        Cache Configuration         //
@@ -57,15 +57,38 @@ uint64_t l2cachePenalties; // L2$ penalties
 
 //
 //TODO: Add your Cache data structures here
-struct cacheUnit{
-  uint32_t tag;                                      //tag of certain block
-  bool occupy;                                       //if the position is occupied by a block
-  uint32_t priority;                                 //the priority of this block in the set
-  cacheUnit(): tag(0), occupy(false), priority(0){}
+struct cacheBlock {
+  uint64_t tag;
+  uint64_t address
+  uint32_t RU; //recently used
+  bool dirty;
+  bool valid;
+};
+
+struct cache {
+  //parameters
+  uint32_t blockSize; //size for one block
+  uint32_t blockNum;  //total block number 
+  uint32_t assocNum;  //associaitiivty of a cache
+  uint32_t setNum;    //set number of a cache
+  uint32_t indexBits;
+  uint32_t offsetBits;
+
+  //performance
+  uint32_t readMiss;
+  uint32_t readHit;
+  uint32_t writeMiss;
+  uint32_t writeHit;
+
+  struct cacheBlock *blocks;
+  struct cache *victim;
+  struct cache *nextLevel;
 };
 
 //
-
+cache *iCache;
+cache *dCache;  
+ 
 //------------------------------------//
 //          Cache Functions           //
 //------------------------------------//
