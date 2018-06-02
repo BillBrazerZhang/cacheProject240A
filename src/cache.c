@@ -58,8 +58,8 @@ uint64_t l2cachePenalties; // L2$ penalties
 //
 //TODO: Add your Cache data structures here
 struct cacheBlock {
-  uint64_t tag;
-  uint64_t address //address recorded
+  uint32_t tag;
+  uint32_t address //address recorded
   uint32_t RU; //recently used
   bool dirty;
   bool valid;
@@ -134,7 +134,7 @@ init_cache()
 
   iCache.blocks = (struct cacheBlock*)malloc(sizeof(struct cacheBlock)*iCache.setNum*iCache.assocNum);
   iCache.victim = NULL;
-  iCache.nextLevel = NULL;
+  iCache.nextLevel = l2Cache;
 
   initBlocks(iCache, iCache.blockNum);
   //iCache.victim = (struct cache*)malloc(sizeof(cache));
@@ -154,7 +154,7 @@ init_cache()
   
   dCache.blocks = (struct cacheBlock*)malloc(sizeof(struct cacheBlock)*dCache.setNum*dCache.assocNum);
   dCache.victim = NULL;
-  dCache.nextLevel = NULL;
+  dCache.nextLevel = l2Cache;
 
   initBlocks(dCache, dCache.blockNum);
   //dCache.victim = (struct cache*)malloc(sizeof(cache));
@@ -210,14 +210,23 @@ uint32_t decodeTag(cache* memory, uint32_t addr) {
 }
 
 void updateLRU(struct cache *memory, uint32_t index, uint32_t tag) {
-
+  uint32_t currRU = memory.blocks[(index*memory.assocNum) + tag].RU;
+  for(uint32_t i = 0; i < memory.assocNum; i++) {
+    if(memory.blocks[(index*memory.assocNum) + i].valid == 1 && memory.blocks[(index*memory.assocNum) + i].RU < currRU) {
+      memory.blocks[(index*memory.assocNum) + i].RU++;
+    }
+  }
+  memory.blocks[(index*memory.assocNum) + tag].RU = 0;
 } 
 
-void checkHitMiss(cache* destCache, uint32_t addr, uint32_t index, uint32_t tag) {
-//check if value exists, if so: return, add penalty time
-//if not: check victim, if there has, exchange
-          // if not check L2, cal time
-          //exchange of fill in the cache with current value 
+void checkHitMiss(cache* memory, uint32_t index, uint32_t tag) {
+  uint32_t row = index*memory.assocNum;
+
+  for(uint32_t i = 0; i < memory.assocNum; i++) {
+    if(memory.blocks[row + i].valid == 1 && memory.blocks[row + i].tag == tag)
+      return i;
+  }
+  return -1;
 }
 
 uint32_t
