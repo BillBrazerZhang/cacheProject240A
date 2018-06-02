@@ -76,8 +76,6 @@ struct cache {
   uint32_t indexBits;
   uint32_t offsetBits;
   
-  bool inclu;
-
   //performance
   uint32_t readMiss;
   uint32_t readHit;
@@ -119,34 +117,60 @@ init_cache()
   iCache.blockSize = blocksize;
   iCache.setNum = icacheSets;
   iCache.assocNum = icacheAssoc;
-  iCache.inclu = inclusive;
   iCach.hitTime = icacheHitTime;
+  iCache.blocks = (struct cacheBlock*)malloc(sizeof(struct cacheBlock)*iCache.setNum*iCache.assocNum);
   iCache.victim = (struct cache*)malloc(sizeof(cache));
+  iCache.victim.blocks = (struct cacheBlock*)malloc(sizeof(struct cacheBlock));
 
   dCache = (struct cache*)malloc(sizeof(cache));
   dCache.blockSize = blocksize;
   dCache.setNum = icacheSets;
   dCache.assocNum = icacheAssoc;
-  dCache.inclu = inclusive;
   dCache.hitTime = dcacheHitTime;
+  dCache.blocks = (struct cacheBlock*)malloc(sizeof(struct cacheBlock)*dCache.setNum*dCache.assocNum);
   dCache.victim = (struct cache*)malloc(sizeof(cache));
+  dCache.victim.blocks = (struct cacheBlock*)malloc(sizeof(cacheBlock));
 
   l2Cache = (struct cache*)malloc(sizeof(cache));
   l2Cache.blockSize = blocksize;
-  l2Cache
+  l2Cache.setNum = l2cacheSets;
+  l2Cache.assocNum = l2cacheAssoc;
+  l2Cache.hitTime = l2cacheHitTime;
+  l2Cache.blocks = (struct cacheBlock*)malloc(sizeof(struct cacheBlock)*l2Cache.setNum*l2Cache.assocNum);
+  l2Cache.victim = (struct cache*)malloc(sizeof(cache));
+  //l2Cache.victim.blocks = (struct cacheBlock*)malloc(sizeof(cacheBlock));
 
 }
 
 // Perform a memory access through the icache interface for the address 'addr'
 // Return the access time for the memory operation
 //
-uint32_t decodeIndex(uint32_t addr) {
-
+void freeCache(struct cache *memory) {
+  free(memory.blocks);
+  free(memory);
 }
 
-uint32_t decodeTag(uint32_t addr) {
-
+uint32_t decodeIndex(cache* memory, uint32_t addr) {
+  if(memory.indexBits == 0) return 0;
+  else {
+    addr = addr >> memory.offsetBits;
+    uint32_t operand = 0;
+    for(int i = 0; i < memory.indexBits; i++) {
+      num += pow(2, i);
+    }
+    addr = addr&num;
+  }
+  return addr;
 }
+
+uint32_t decodeTag(cache* memory, uint32_t addr) {
+  addr = addr >> (memory.offsetBits + memory.indexBits);
+  return address; 
+}
+
+void updateLRU(struct cache *memory, uint32_t index, uint32_t tag) {
+
+} 
 
 void checkHitMiss(cache* destCache, uint32_t addr, uint32_t index, uint32_t tag) {
 //check if value exists, if so: return, add penalty time
