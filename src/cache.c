@@ -83,9 +83,9 @@ struct cache {
 };
 
 //
-cache *iCache;
-cache *dCache;  
-cache *l2Cache; 
+cache *iCache = NULL;
+cache *dCache = NULL;  
+cache *l2Cache = NULL; 
 //------------------------------------//
 //          Cache Functions           //
 //------------------------------------//
@@ -98,6 +98,25 @@ void initBlocks(struct cache* memory, uint32_t blockNum) {
     memory.blocks[i].dirty = FALSE;
     memory.blocks[i].valid = TRUE;
   }
+}
+
+void initCache(struct cache* memory, uint32_t blocksize, uint32_t cacheSets, uint32_t cacheAssoc, uint32_t hitTime) {
+  memory = (struct cache*)malloc(sizeof(cache));
+  memory.blockSize = blocksize;
+  memory.setNum = icacheSets;
+  memory.assocNum = icacheAssoc;
+  memory.hitTime = icacheHitTime;
+
+  memory.offsetBits = log2(memory.blocksize);
+  memory.indexBits = log2(memory.setNum);
+  memory.tagBits = MAX_BITS - memory.offsetBits - memory.indexBits;
+  memory.blockNum = memory.setNum*memory.assocNum;  
+
+  memory.blocks = (struct cacheBlock*)malloc(sizeof(struct cacheBlock)*memory.setNum*memory.assocNum);
+  initCache(memory.victim, blocksize, 1, 1, hitTime);
+  memory.nextLevel = l2Cache;
+
+  initBlocks(memory, memory.blockNum);
 }
 // Initialize the Cache Hierarchy
 //
@@ -121,62 +140,20 @@ init_cache()
   //TODO: Initialize Cache Simulator Data Structures
   //
   //iCache
-  iCache = (struct cache*)malloc(sizeof(cache));
-  iCache.blockSize = blocksize;
-  iCache.setNum = icacheSets;
-  iCache.assocNum = icacheAssoc;
-  iCache.hitTime = icacheHitTime;
-
-  iCache.offsetBits = log2(iCache.blocksize);
-  iCache.indexBits = log2(iCache.setNum);
-  iCache.tagBits = MAX_BITS - iCache.offsetBits - iCache.indexBits;
-  iCache.blockNum = iCache.setNum*iCache.assocNum;  
-
-  iCache.blocks = (struct cacheBlock*)malloc(sizeof(struct cacheBlock)*iCache.setNum*iCache.assocNum);
-  iCache.victim = NULL;
-  iCache.nextLevel = l2Cache;
-
-  initBlocks(iCache, iCache.blockNum);
+  if(icacheAssoc > 0 && icacheSets > 0 && blocksize > 0)
+    initCache(iCache, blocksize, icacheSets, icacheAssoc, icacheHitTime);
   //iCache.victim = (struct cache*)malloc(sizeof(cache));
   //iCache.victim.blocks = (struct cacheBlock*)malloc(sizeof(struct cacheBlock));
 
   //dCache
-  dCache = (struct cache*)malloc(sizeof(cache));
-  dCache.blockSize = blocksize;
-  dCache.setNum = dcacheSets;
-  dCache.assocNum = dcacheAssoc;
-  dCache.hitTime = dcacheHitTime;
-
-  dCache.offsetBits = log2(dCache.blocksize);
-  dCache.indexBits = log2(dCache.setNum);
-  dCache.tagBits = MAX_BITS - dCache.offsetBits - dCache.indexBits;
-  dCache.blockNum = dCache.setNum*dCache.assocNum;  
-  
-  dCache.blocks = (struct cacheBlock*)malloc(sizeof(struct cacheBlock)*dCache.setNum*dCache.assocNum);
-  dCache.victim = NULL;
-  dCache.nextLevel = l2Cache;
-
-  initBlocks(dCache, dCache.blockNum);
+  if(dcacheAssoc > 0 && dcacheSets > 0 && blocksize > 0)  
+    initCache(dCache, blocksize, dcacheSets, dcacheAssoc, dcacheHitTime);
   //dCache.victim = (struct cache*)malloc(sizeof(cache));
   //dCache.victim.blocks = (struct cacheBlock*)malloc(sizeof(cacheBlock));
 
   //L2Cache
-  l2Cache = (struct cache*)malloc(sizeof(cache));
-  l2Cache.blockSize = blocksize;
-  l2Cache.setNum = l2cacheSets;
-  l2Cache.assocNum = l2cacheAssoc;
-  l2Cache.hitTime = l2cacheHitTime;
-  
-  l2Cache.offsetBits = log2(l2Cache.blocksize);
-  l2Cache.indexBits = log2(l2Cache.setNum);
-  l2Cache.tagBits = MAX_BITS - l2Cache.offsetBits - l2Cache.indexBits;
-  l2Cache.blockNum = l2Cache.setNum*dCache.assocNum;  
-  
-  l2Cache.blocks = (struct cacheBlock*)malloc(sizeof(struct cacheBlock)*l2Cache.setNum*l2Cache.assocNum);
-  l2Cache.victim = NULL;
-  l2Cache.nextLevel = NULL;
-
-  initBlocks(l2Cache, l2Cache.blockNum);
+  if(iCache != null || dCache != null)
+    initCache(l2Cache, blocksize, l2cacheSets, l2cacheAssoc, l2cacheHitTime);
   //l2Cache.blocks = (struct cacheBlock*)malloc(sizeof(struct cacheBlock)*l2Cache.setNum*l2Cache.assocNum);
   //l2Cache.victim = (struct cache*)malloc(sizeof(cache));
   //l2Cache.victim.blocks = (struct cacheBlock*)malloc(sizeof(cacheBlock));
@@ -219,22 +196,40 @@ void updateLRU(struct cache *memory, uint32_t index, uint32_t tag) {
   memory.blocks[(index*memory.assocNum) + tag].RU = 0;
 } 
 
-void checkHitMiss(cache* memory, uint32_t index, uint32_t tag) {
+int checkHitMiss(cache* memory, uint32_t index, uint32_t tag) {
   uint32_t row = index*memory.assocNum;
 
-  for(uint32_t i = 0; i < memory.assocNum; i++) {
+  for(int i = 0; i < memory.assocNum; i++) {
     if(memory.blocks[row + i].valid == 1 && memory.blocks[row + i].tag == tag)
       return i;
   }
   return -1;
 }
 
+void accessCache(struct cache* memory, uint32_t addr, char mode) {
+  uint32_t index, tag;
+  index = decodeIndex(memory, addr);
+  tag = decodeTag(memory, addr);
+  int queryResult = checkHitMiss(memory, index, tag);
+  if(queryResult >= 0) {
+    if(mode == 'i') {
+      icacheRefs++;
+    }else {
+      dcacheRefs++:
+    }
+  }else {
+    if(mode == 'i') {
+      icacheMisses++;
+    }else {
+      dcacheMisses++;
+    }
+  }
+}
+
 uint32_t
 icache_access(uint32_t addr)
 {
-  uint32_t index, tag;
-  index = decodeIndex(iCache, addr);
-  tag = decodeTag(dCache, addr);
+  
 
   return memspeed;
 }
