@@ -75,10 +75,7 @@ struct cache {
 
   uint32_t indexBits;
   uint32_t offsetBits;
-  
-  //performance
-  uint32_t readMiss;
-  uint32_t readHit;
+  uint32_t tagBits;
 
   struct cacheBlock *blocks;
   struct cache *victim;
@@ -102,9 +99,11 @@ init_cache()
   icacheRefs        = 0;
   icacheMisses      = 0;
   icachePenalties   = 0;
+
   dcacheRefs        = 0;
   dcacheMisses      = 0;
   dcachePenalties   = 0;
+
   l2cacheRefs       = 0;
   l2cacheMisses     = 0;
   l2cachePenalties  = 0;
@@ -117,27 +116,56 @@ init_cache()
   iCache.blockSize = blocksize;
   iCache.setNum = icacheSets;
   iCache.assocNum = icacheAssoc;
-  iCach.hitTime = icacheHitTime;
-  iCache.blocks = (struct cacheBlock*)malloc(sizeof(struct cacheBlock)*iCache.setNum*iCache.assocNum);
-  iCache.victim = (struct cache*)malloc(sizeof(cache));
-  iCache.victim.blocks = (struct cacheBlock*)malloc(sizeof(struct cacheBlock));
+  iCache.hitTime = icacheHitTime;
 
+  iCache.offsetBits = log2(iCache.blocksize);
+  iCache.indexBits = log2(iCache.setNum);
+  iCache.tagBits = MAX_BITS - iCache.offsetBits - iCache.indexBits;
+  iCache.blockNum = iCache.setNum*iCache.assocNum;  
+
+  iCache.blocks = (struct cacheBlock*)malloc(sizeof(struct cacheBlock)*iCache.setNum*iCache.assocNum);
+  iCache.victim = NULL;
+  iCache.nextLevel = NULL;
+  //iCache.victim = (struct cache*)malloc(sizeof(cache));
+  //iCache.victim.blocks = (struct cacheBlock*)malloc(sizeof(struct cacheBlock));
+
+  //dCache
   dCache = (struct cache*)malloc(sizeof(cache));
   dCache.blockSize = blocksize;
-  dCache.setNum = icacheSets;
-  dCache.assocNum = icacheAssoc;
+  dCache.setNum = dcacheSets;
+  dCache.assocNum = dcacheAssoc;
   dCache.hitTime = dcacheHitTime;
-  dCache.blocks = (struct cacheBlock*)malloc(sizeof(struct cacheBlock)*dCache.setNum*dCache.assocNum);
-  dCache.victim = (struct cache*)malloc(sizeof(cache));
-  dCache.victim.blocks = (struct cacheBlock*)malloc(sizeof(cacheBlock));
 
+  dCache.offsetBits = log2(dCache.blocksize);
+  dCache.indexBits = log2(dCache.setNum);
+  dCache.tagBits = MAX_BITS - dCache.offsetBits - dCache.indexBits;
+  dCache.blockNum = dCache.setNum*dCache.assocNum;  
+  
+  dCache.blocks = (struct cacheBlock*)malloc(sizeof(struct cacheBlock)*dCache.setNum*dCache.assocNum);
+  dCache.victim = NULL;
+  dCache.nextLevel = NULL;
+  //dCache.victim = (struct cache*)malloc(sizeof(cache));
+  //dCache.victim.blocks = (struct cacheBlock*)malloc(sizeof(cacheBlock));
+
+  //L2Cache
   l2Cache = (struct cache*)malloc(sizeof(cache));
   l2Cache.blockSize = blocksize;
   l2Cache.setNum = l2cacheSets;
   l2Cache.assocNum = l2cacheAssoc;
   l2Cache.hitTime = l2cacheHitTime;
+  
+  l2Cache.offsetBits = log2(l2Cache.blocksize);
+  l2Cache.indexBits = log2(l2Cache.setNum);
+  l2Cache.tagBits = MAX_BITS - l2Cache.offsetBits - l2Cache.indexBits;
+  l2Cache.blockNum = l2Cache.setNum*dCache.assocNum;  
+  
   l2Cache.blocks = (struct cacheBlock*)malloc(sizeof(struct cacheBlock)*l2Cache.setNum*l2Cache.assocNum);
-  l2Cache.victim = (struct cache*)malloc(sizeof(cache));
+  l2Cache.victim = NULL;
+  l2Cache.nextLevel = NULL;
+
+
+  //l2Cache.blocks = (struct cacheBlock*)malloc(sizeof(struct cacheBlock)*l2Cache.setNum*l2Cache.assocNum);
+  //l2Cache.victim = (struct cache*)malloc(sizeof(cache));
   //l2Cache.victim.blocks = (struct cacheBlock*)malloc(sizeof(cacheBlock));
 
 }
@@ -182,9 +210,10 @@ void checkHitMiss(cache* destCache, uint32_t addr, uint32_t index, uint32_t tag)
 uint32_t
 icache_access(uint32_t addr)
 {
-  //
-  //TODO: Implement I$
-  //
+  uint32_t index, tag;
+  index = decodeIndex(iCache, addr);
+  tag = decodeTag(dCache, addr);
+
   return memspeed;
 }
 

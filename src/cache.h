@@ -11,7 +11,9 @@
 
 #include <stdint.h>
 #include <stdlib.h>
-
+#include <math.h>
+#include <ctype.h>
+#include <string.h>
 //
 // Student Information
 //
@@ -25,7 +27,7 @@ extern const char *email;
 
 #define TRUE 1
 #define FALSE 0
-
+#define MAX_BITS = 32;
 //------------------------------------//
 //        Cache Configuration         //
 //------------------------------------//
