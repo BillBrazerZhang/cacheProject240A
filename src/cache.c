@@ -61,7 +61,7 @@ struct cacheBlock {
   uint32_t tag;
   uint32_t address //address recorded
   uint32_t RU; //recently used
-  bool dirty;
+  //bool dirty;
   bool valid;
 };
 
@@ -95,12 +95,12 @@ void initBlocks(struct cache* memory, uint32_t blockNum) {
     memory.blocks[i].tag = 0;
     memory.blocks[i].address = 0;
     memory.blocks[i].RU = memory.assocNum - 1;
-    memory.blocks[i].dirty = FALSE;
+    //memory.blocks[i].dirty = FALSE;
     memory.blocks[i].valid = TRUE;
   }
 }
 
-void initCache(struct cache* memory, uint32_t blocksize, uint32_t cacheSets, uint32_t cacheAssoc, uint32_t hitTime) {
+void initCache(struct cache* memory, uint32_t blocksize, uint32_t cacheSets, uint32_t cacheAssoc, uint32_t hitTime, int isL2) {
   memory = (struct cache*)malloc(sizeof(cache));
   memory.blockSize = blocksize;
   memory.setNum = icacheSets;
@@ -113,8 +113,10 @@ void initCache(struct cache* memory, uint32_t blocksize, uint32_t cacheSets, uin
   memory.blockNum = memory.setNum*memory.assocNum;  
 
   memory.blocks = (struct cacheBlock*)malloc(sizeof(struct cacheBlock)*memory.setNum*memory.assocNum);
-  initCache(memory.victim, blocksize, 1, 1, hitTime);
-  memory.nextLevel = l2Cache;
+  if(isL2 == FALSE){
+    initCache(memory.victim, blocksize, 1, 1, hitTime);
+    memory.nextLevel = l2Cache;
+  }
 
   initBlocks(memory, memory.blockNum);
 }
@@ -141,19 +143,19 @@ init_cache()
   //
   //iCache
   if(icacheAssoc > 0 && icacheSets > 0 && blocksize > 0)
-    initCache(iCache, blocksize, icacheSets, icacheAssoc, icacheHitTime);
+    initCache(iCache, blocksize, icacheSets, icacheAssoc, icacheHitTime, FALSE);
   //iCache.victim = (struct cache*)malloc(sizeof(cache));
   //iCache.victim.blocks = (struct cacheBlock*)malloc(sizeof(struct cacheBlock));
 
   //dCache
   if(dcacheAssoc > 0 && dcacheSets > 0 && blocksize > 0)  
-    initCache(dCache, blocksize, dcacheSets, dcacheAssoc, dcacheHitTime);
+    initCache(dCache, blocksize, dcacheSets, dcacheAssoc, dcacheHitTime, FALSE);
   //dCache.victim = (struct cache*)malloc(sizeof(cache));
   //dCache.victim.blocks = (struct cacheBlock*)malloc(sizeof(cacheBlock));
 
   //L2Cache
   if(iCache != null || dCache != null)
-    initCache(l2Cache, blocksize, l2cacheSets, l2cacheAssoc, l2cacheHitTime);
+    initCache(l2Cache, blocksize, l2cacheSets, l2cacheAssoc, l2cacheHitTime, TRUE);
   //l2Cache.blocks = (struct cacheBlock*)malloc(sizeof(struct cacheBlock)*l2Cache.setNum*l2Cache.assocNum);
   //l2Cache.victim = (struct cache*)malloc(sizeof(cache));
   //l2Cache.victim.blocks = (struct cacheBlock*)malloc(sizeof(cacheBlock));
@@ -206,31 +208,70 @@ int checkHitMiss(cache* memory, uint32_t index, uint32_t tag) {
   return -1;
 }
 
-void accessCache(struct cache* memory, uint32_t addr, char mode) {
+uint64_t accessCache(struct cache* memory, uint32_t addr, char mode) {
   uint32_t index, tag;
+  uint64_t timeCost = 0;
+  int queryVictim = 0;
+
   index = decodeIndex(memory, addr);
   tag = decodeTag(memory, addr);
   int queryResult = checkHitMiss(memory, index, tag);
   if(queryResult >= 0) {
     if(mode == 'i') {
       icacheRefs++;
-    }else {
-      dcacheRefs++:
+      timeCost += icachePenalties;
+    }
+    if(mode == 'd') {
+      dcacheRefs++;
+      timeCost += dcachePenalties;
+    }
+    if(mode == 'l') {
+      l2cacheRefs++;
+      timeCost += l2cachePenalties;
     }
   }else {
     if(mode == 'i') {
       icacheMisses++;
-    }else {
+      timeCost += icachePenalties;
+    }
+    if(mode == 'd') {
       dcacheMisses++;
+      timeCost += dcachePenalties;
+    }
+    if(mode == 'l') {
+      l2cacheMisses++;
+      timeCost += l2cachePenalties;
+    }
+    if(memory.victim != NULL) {
+      queryVictim = accessVictimCache(memory, index, tag, mode);
+    }
+
+    if(queryVictim == 0) { //check what would happen in L2
+      queryResult = createSpace(memory, index, tag, mode);
+    }
+
+    uint64_t l2TimeCost = 0;
+    if(queryVictim == 0 && memory.nextLevel != NULL) {
+      l2TimeCost = accessCache(l2Cache, addr, 'l');
+      timeCost += l2TimeCost;
+    }
+
+    if(queryVictim == 0) {
+      memory.blocks[index*memory.assocNum + queryResult].valid = 1;
+      memory.blocks[index*memory.assocNum + queryResult].tag = tag;
     }
   }
+  if(queryVictim == 0) {
+    updateLRU(memory, index, queryResult);
+  }
+
+  return timeCost;
 }
 
 uint32_t
 icache_access(uint32_t addr)
 {
-  
-
+  uint32_t memspeed = (uint32_t)accessCache(iCache, addr, 'i');
   return memspeed;
 }
 
@@ -243,13 +284,14 @@ dcache_access(uint32_t addr)
   //
   //TODO: Implement D$
   //
+  uint32_t memspeed = (uint32_t)accessCache(l2Cache, addr, 'd');
   return memspeed;
 }
 
 // Perform a memory access to the l2cache for the address 'addr'
 // Return the access time for the memory operation
 //
-uint32_t
+/*uint32_t
 l2cache_access(uint32_t addr)
 {
   //
@@ -257,3 +299,4 @@ l2cache_access(uint32_t addr)
   //
   return memspeed;
 }
+*/

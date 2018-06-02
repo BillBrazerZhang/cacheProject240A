@@ -72,6 +72,8 @@ extern uint64_t l2cachePenalties; // L2$ penalties
 //
 void init_cache();
 
+void freeCache(cache *memory);
+
 // Perform a memory access through the icache interface for the address 'addr'
 // Return the access time for the memory operation
 //
@@ -85,6 +87,6 @@ uint32_t dcache_access(uint32_t addr);
 // Perform a memory access to the l2cache for the address 'addr'
 // Return the access time for the memory operation
 //
-uint32_t l2cache_access(uint32_t addr);
+//uint32_t l2cache_access(uint32_t addr);
 
 #endif
