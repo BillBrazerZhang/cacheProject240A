@@ -288,6 +288,156 @@ dcache_access(uint32_t addr)
   return memspeed;
 }
 
+
+int createSpace(struct cache* memory, uint32_t index, uint32_t tag) {
+  uint32_t row = index * memory.assocNum;
+  int  i = 0;
+  for(i; i < memory.assocNum; i++) {
+    if(memory.blocks[row + i].count == (memory.assocNum -1))
+      break;
+  }
+
+  uint32_t blockAddress;
+  blockAddress = memory.blocks[row + i].tag << memory.indexBits;
+  blockAddress = blockAddress << memory.offsetBits;
+  blockAddress = blockAddress + (index<<memory.offsetBits);
+
+  if(memory.blocks[row + i].valid == 1 && memory.nextLevel != NULL) {
+    accessCache(memory.nextLevel, blockAddress, 'l');
+  }
+
+  memory->blocks[row + i].tag = 0;
+  memory->blocks[row + i].valid = 0;
+  memory->blocks[row + i].count = memory.assocNum - 1;
+
+  return j;
+
+}
+
+int accessVictimCache(struct cache *memory, uint32_t index, uint32_t tag, char mode)
+{
+     int j;
+     uint32_t row = index * memory.assocNum;
+     for(j=0;j<memory.assocNum;j++)
+     {
+        assert(memory->blocks[row + j].count <= (memory.assocNum - 1));
+        if( memory->blocks[row + j].valid == 0)
+        {
+             return 0;
+        }
+     }
+     uint32_t requiredAddress;
+     requiredAddress = tag<<memory.indexBits;
+     requiredAddress = requiredAddress<<memory.offsetBits;
+     requiredAddress = requiredAddress + (index<<memory.offsetBits);
+
+     for(j=0;j<memory.assocNum;j++)
+     {
+        assert(mem->blocks[row + j].count <= (mem->assoc - 1));
+        if( mem->blocks[row + j].count == (mem->assoc - 1))
+        {
+             break;
+        }
+     }
+     assert(j <= (mem->assoc - 1));
+
+     unsigned long identified_block_recreated_address;
+     identified_block_recreated_address = mem->blocks[row+j].tag<<mem->index_bits;
+     identified_block_recreated_address = identified_block_recreated_address<<mem->block_offset_bits;
+     identified_block_recreated_address = identified_block_recreated_address + (index<<mem->block_offset_bits);
+     
+     if (DEBUG == 1) {
+         if (mem->blocks[row+j].dirty == 1)
+             printf(" %s victim: %lx (tag %lx, index %lu, dirty)\n",mem->name,identified_block_recreated_address,mem->blocks[row+j].tag,index);
+         else
+             printf(" %s victim: %lx (tag %lx, index %lu, clean)\n",mem->name,identified_block_recreated_address,mem->blocks[row+j].tag,index);
+     }
+     
+     if (DEBUG == 1) {printf(" %s swap req: [%lx, %lx]\n",mem->vc->name,required_address,identified_block_recreated_address);}
+     mem->swap_requests++;
+
+     assert(mem->vc->rows == 1);
+
+     //INFO: victim hit or miss
+     int column;
+     column = check_cache_hit(mem->vc,decode_tag(mem->vc,required_address),0);
+     if(column < 0)
+     {
+         if (mode == 'r')
+         {
+             mem->vc->read_misses++;
+         }
+         else if (mode == 'w')
+         {
+             mem->vc->write_misses++;
+         }
+         if (DEBUG == 1) {printf(" %s miss \n",mem->vc->name);}
+         column = create_space(mem->vc,decode_tag(mem->vc,identified_block_recreated_address),0);
+         if(mem->next != NULL)
+         {
+            access_cache(mem->next,required_address,'r');
+         }
+         //INFO: Access Upper Memory for data
+         mem->blocks[row + j].valid = 1;
+         mem->blocks[row + j].tag = tag;
+         //INFO: Acquire L1's evicted data
+         mem->vc->blocks[column].tag = decode_tag(mem->vc,identified_block_recreated_address);
+         mem->vc->blocks[column].valid = 1;
+         mem->vc->blocks[column].dirty = mem->blocks[row+j].dirty;
+         update_count(mem->vc,0,column);
+         if (DEBUG == 1 ) {printf(" %s update LRU\n",mem->vc->name);}
+         update_count(mem,index,j);
+         if (DEBUG == 1 ) {printf(" %s update LRU\n",mem->name);}
+         if(mode == 'r')
+         {
+             mem->blocks[row + j].dirty = 0;
+         }
+         else if (mode == 'w')
+         {
+             mem->blocks[row + j].dirty = 1;
+             if (DEBUG == 1 ) {printf(" %s set dirty\n",mem->name);}
+         }
+     }
+     else
+     {
+         if (mode == 'r')
+         {
+             mem->vc->read_hits++;
+         }
+         else if (mode == 'w')
+         {
+             mem->vc->write_hits++;
+         }
+         mem->swaps++;
+         if (DEBUG == 1) {
+            if (mem->vc->blocks[column].dirty == 1)
+                printf(" %s hit: %lx (dirty)\n",mem->vc->name,required_address);
+            else
+                 printf(" %s hit: %lx (clean)\n",mem->vc->name,required_address);
+         }
+         mem->vc->blocks[column].tag = decode_tag(mem->vc,identified_block_recreated_address);
+         int temp = mem->vc->blocks[column].dirty;
+         mem->vc->blocks[column].dirty = mem->blocks[row+j].dirty;
+         mem->vc->blocks[column].valid = 1;
+         update_count(mem->vc,0,column);
+         if (DEBUG == 1 ) {printf(" %s update LRU\n",mem->vc->name);}
+         mem->blocks[row + j].valid = 1;
+         mem->blocks[row + j].tag = tag;
+         update_count(mem,index,j);
+         if (DEBUG == 1 ) {printf(" %s update LRU\n",mem->name);}
+         if(mode == 'r')
+         {
+             mem->blocks[row + j].dirty = temp;
+         }
+         else if (mode == 'w')
+         {
+             mem->blocks[row + j].dirty = 1;
+             if (DEBUG == 1 ) {printf(" %s set dirty\n",mem->name);}
+         }
+     }
+         //DEBUG HELP: printf("%d %d %d %d\n",mem->vc->read_hits,mem->vc->read_misses,mem->vc->write_hits,mem->vc->write_misses);
+     return 1;
+}
 // Perform a memory access to the l2cache for the address 'addr'
 // Return the access time for the memory operation
 //
