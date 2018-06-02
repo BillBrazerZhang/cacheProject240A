@@ -89,7 +89,16 @@ cache *l2Cache;
 //------------------------------------//
 //          Cache Functions           //
 //------------------------------------//
-
+// Initialize the blocks
+void initBlocks(struct cache* memory, uint32_t blockNum) {
+  for(uint32_t i = 0; i < blockNum; i++) {
+    memory.blocks[i].tag = 0;
+    memory.blocks[i].address = 0;
+    memory.blocks[i].RU = memory.assocNum - 1;
+    memory.blocks[i].dirty = FALSE;
+    memory.blocks[i].valid = TRUE;
+  }
+}
 // Initialize the Cache Hierarchy
 //
 void
@@ -126,6 +135,8 @@ init_cache()
   iCache.blocks = (struct cacheBlock*)malloc(sizeof(struct cacheBlock)*iCache.setNum*iCache.assocNum);
   iCache.victim = NULL;
   iCache.nextLevel = NULL;
+
+  initBlocks(iCache, iCache.blockNum);
   //iCache.victim = (struct cache*)malloc(sizeof(cache));
   //iCache.victim.blocks = (struct cacheBlock*)malloc(sizeof(struct cacheBlock));
 
@@ -144,6 +155,8 @@ init_cache()
   dCache.blocks = (struct cacheBlock*)malloc(sizeof(struct cacheBlock)*dCache.setNum*dCache.assocNum);
   dCache.victim = NULL;
   dCache.nextLevel = NULL;
+
+  initBlocks(dCache, dCache.blockNum);
   //dCache.victim = (struct cache*)malloc(sizeof(cache));
   //dCache.victim.blocks = (struct cacheBlock*)malloc(sizeof(cacheBlock));
 
@@ -163,7 +176,7 @@ init_cache()
   l2Cache.victim = NULL;
   l2Cache.nextLevel = NULL;
 
-
+  initBlocks(l2Cache, l2Cache.blockNum);
   //l2Cache.blocks = (struct cacheBlock*)malloc(sizeof(struct cacheBlock)*l2Cache.setNum*l2Cache.assocNum);
   //l2Cache.victim = (struct cache*)malloc(sizeof(cache));
   //l2Cache.victim.blocks = (struct cacheBlock*)malloc(sizeof(cacheBlock));
