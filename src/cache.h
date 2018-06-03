@@ -77,12 +77,27 @@ void freeCache(cache *memory);
 // Perform a memory access through the icache interface for the address 'addr'
 // Return the access time for the memory operation
 //
+int checkHitMiss(cache* memory, uint32_t index, uint32_t tag);
+
+
+uint64_t accessCache(struct cache* memory, uint32_t addr, char mode);
+
 uint32_t icache_access(uint32_t addr);
+
+uint32_t decodeTag(cache* memory, uint32_t addr);
+
+uint32_t decodeIndex(cache* memory, uint32_t addr);
 
 // Perform a memory access through the dcache interface for the address 'addr'
 // Return the access time for the memory operation
 //
 uint32_t dcache_access(uint32_t addr);
+
+int accessVictimCache(struct cache *memory, uint32_t index, uint32_t tag, char mode);
+
+int createSpace(struct cache* memory, uint32_t index, uint32_t tag);
+
+void updateLRU(struct cache *memory, uint32_t index, uint32_t tag);
 
 // Perform a memory access to the l2cache for the address 'addr'
 // Return the access time for the memory operation
