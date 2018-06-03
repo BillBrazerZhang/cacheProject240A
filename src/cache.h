@@ -70,6 +70,10 @@ extern uint64_t l2cachePenalties; // L2$ penalties
 
 // Initialize the predictor
 //
+void initBlocks(struct cache* memory, uint32_t blockNum);
+
+void initCache(struct cache* memory, uint32_t blocksize, uint32_t cacheSets, uint32_t cacheAssoc, uint32_t hitTime, int isL2);
+
 void init_cache();
 
 void freeCache(cache *memory);
@@ -98,6 +102,8 @@ int accessVictimCache(struct cache *memory, uint32_t index, uint32_t tag, char m
 int createSpace(struct cache* memory, uint32_t index, uint32_t tag);
 
 void updateLRU(struct cache *memory, uint32_t index, uint32_t tag);
+
+int fillCache(struct cache *memory, uint32_t index, uint32_t tag);
 
 // Perform a memory access to the l2cache for the address 'addr'
 // Return the access time for the memory operation

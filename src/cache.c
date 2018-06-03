@@ -89,6 +89,7 @@ cache *l2Cache = NULL;
 //------------------------------------//
 //          Cache Functions           //
 //------------------------------------//
+
 // Initialize the blocks
 void initBlocks(struct cache* memory, uint32_t blockNum) {
   for(uint32_t i = 0; i < blockNum; i++) {
@@ -100,12 +101,13 @@ void initBlocks(struct cache* memory, uint32_t blockNum) {
   }
 }
 
+//init Cache structure
 void initCache(struct cache* memory, uint32_t blocksize, uint32_t cacheSets, uint32_t cacheAssoc, uint32_t hitTime, int isL2) {
   memory = (struct cache*)malloc(sizeof(cache));
   memory.blockSize = blocksize;
-  memory.setNum = icacheSets;
-  memory.assocNum = icacheAssoc;
-  memory.hitTime = icacheHitTime;
+  memory.setNum = cacheSets;
+  memory.assocNum = cacheAssoc;
+  memory.hitTime = hitTime;
 
   memory.offsetBits = log2(memory.blocksize);
   memory.indexBits = log2(memory.setNum);
@@ -114,7 +116,7 @@ void initCache(struct cache* memory, uint32_t blocksize, uint32_t cacheSets, uin
 
   memory.blocks = (struct cacheBlock*)malloc(sizeof(struct cacheBlock)*memory.setNum*memory.assocNum);
   if(isL2 == FALSE){
-    initCache(memory.victim, blocksize, 1, 1, hitTime);
+    initCache(memory.victim, blocksize, 1, 1, hitTime, FALSE);
     memory.nextLevel = l2Cache;
   }
 
@@ -138,64 +140,56 @@ init_cache()
   l2cacheMisses     = 0;
   l2cachePenalties  = 0;
   
-  //
-  //TODO: Initialize Cache Simulator Data Structures
-  //
   //iCache
   if(icacheAssoc > 0 && icacheSets > 0 && blocksize > 0)
     initCache(iCache, blocksize, icacheSets, icacheAssoc, icacheHitTime, FALSE);
-  //iCache.victim = (struct cache*)malloc(sizeof(cache));
-  //iCache.victim.blocks = (struct cacheBlock*)malloc(sizeof(struct cacheBlock));
 
   //dCache
   if(dcacheAssoc > 0 && dcacheSets > 0 && blocksize > 0)  
     initCache(dCache, blocksize, dcacheSets, dcacheAssoc, dcacheHitTime, FALSE);
-  //dCache.victim = (struct cache*)malloc(sizeof(cache));
-  //dCache.victim.blocks = (struct cacheBlock*)malloc(sizeof(cacheBlock));
 
   //L2Cache
   if(iCache != null || dCache != null)
     initCache(l2Cache, blocksize, l2cacheSets, l2cacheAssoc, l2cacheHitTime, TRUE);
-  //l2Cache.blocks = (struct cacheBlock*)malloc(sizeof(struct cacheBlock)*l2Cache.setNum*l2Cache.assocNum);
-  //l2Cache.victim = (struct cache*)malloc(sizeof(cache));
-  //l2Cache.victim.blocks = (struct cacheBlock*)malloc(sizeof(cacheBlock));
 
 }
 
-// Perform a memory access through the icache interface for the address 'addr'
-// Return the access time for the memory operation
-//
+//free memory
 void freeCache(struct cache *memory) {
   free(memory.blocks);
   free(memory);
 }
 
+//calculate the Index
 uint32_t decodeIndex(cache* memory, uint32_t addr) {
   if(memory.indexBits == 0) return 0;
   else {
     addr = addr >> memory.offsetBits;
     uint32_t operand = 0;
     for(int i = 0; i < memory.indexBits; i++) {
-      num += pow(2, i);
+      operand += pow(2, i);
     }
     addr = addr&num;
   }
   return addr;
 }
 
+//calculate the Tag
 uint32_t decodeTag(cache* memory, uint32_t addr) {
   addr = addr >> (memory.offsetBits + memory.indexBits);
   return address; 
 }
 
-void updateLRU(struct cache *memory, uint32_t index, uint32_t tag) {
-  uint32_t currRU = memory.blocks[(index*memory.assocNum) + tag].RU;
+
+//replace the LRU
+void updateLRU(struct cache *memory, uint32_t index, uint32_t column) {
+  uint32_t currRU = memory.blocks[(index*memory.assocNum) + column].RU;
   for(uint32_t i = 0; i < memory.assocNum; i++) {
     if(memory.blocks[(index*memory.assocNum) + i].valid == 1 && memory.blocks[(index*memory.assocNum) + i].RU < currRU) {
       memory.blocks[(index*memory.assocNum) + i].RU++;
     }
   }
-  memory.blocks[(index*memory.assocNum) + tag].RU = 0;
+  memory.blocks[(index*memory.assocNum) + tag].RU = 0; //most recently used -> LRU: 0 -> assocNum - 1 
 } 
 
 int checkHitMiss(cache* memory, uint32_t index, uint32_t tag) {
@@ -205,7 +199,7 @@ int checkHitMiss(cache* memory, uint32_t index, uint32_t tag) {
     if(memory.blocks[row + i].valid == 1 && memory.blocks[row + i].tag == tag)
       return i;
   }
-  return -1;
+  return -1; //404 not found
 }
 
 uint64_t accessCache(struct cache* memory, uint32_t addr, char mode) {
@@ -215,7 +209,9 @@ uint64_t accessCache(struct cache* memory, uint32_t addr, char mode) {
 
   index = decodeIndex(memory, addr);
   tag = decodeTag(memory, addr);
+
   int queryResult = checkHitMiss(memory, index, tag);
+
   if(queryResult >= 0) {
     if(mode == 'i') {
       icacheRefs++;
@@ -228,6 +224,9 @@ uint64_t accessCache(struct cache* memory, uint32_t addr, char mode) {
     if(mode == 'l') {
       l2cacheRefs++;
       timeCost += l2cachePenalties;
+    }
+    if(queryVictim == 0) {
+    updateLRU(memory, index, queryResult);
     }
   }else {
     if(mode == 'i') {
@@ -243,7 +242,7 @@ uint64_t accessCache(struct cache* memory, uint32_t addr, char mode) {
       timeCost += l2cachePenalties;
     }
     if(memory.victim != NULL) {
-      queryVictim = accessVictimCache(memory, index, tag, mode);
+      queryVictimResult = accessVictimCache(memory, index, tag, mode);
     }
 
     if(queryVictim == 0) { //check what would happen in L2
@@ -314,13 +313,33 @@ int createSpace(struct cache* memory, uint32_t index, uint32_t tag) {
 
 }
 
+//access Victim, if the result hits the victim, swap the value, update the count,
+//return the result indicate if hits
+
 int accessVictimCache(struct cache *memory, uint32_t index, uint32_t tag, char mode)
 {
-     int j;
+  int query = FALSE;
+  if(memory.victim.blocks[0].tag == tag) {
+    //find the result in the victim cache
+    query = TRUE;
+    //swap value with l1cache
+    uint32_t row = index * memory.assocNum;
+    uint32_t replaceLRU;
+    for(int i = 0; i < memory.assocNum; i++) {
+      if(memory.blocks[row + i].valid == TRUE) {
+        memory.blocks[row + i].tag = tag;
+        //remember to update the LRU
+      }
+    }
+  }else {
+    return FALSE;
+  }   
+
+     /*int j;
      uint32_t row = index * memory.assocNum;
      for(j=0;j<memory.assocNum;j++)
      {
-        assert(memory->blocks[row + j].count <= (memory.assocNum - 1));
+        //assert(memory->blocks[row + j].count <= (memory.assocNum - 1));
         if( memory->blocks[row + j].valid == 0)
         {
              return 0;
@@ -379,6 +398,8 @@ int accessVictimCache(struct cache *memory, uint32_t index, uint32_t tag, char m
      }
          //DEBUG HELP: printf("%d %d %d %d\n",mem->vc->read_hits,mem->vc->read_misses,mem->vc->write_hits,mem->vc->write_misses);
      return 1;
+     */
+
 }
 // Perform a memory access to the l2cache for the address 'addr'
 // Return the access time for the memory operation
@@ -392,3 +413,19 @@ l2cache_access(uint32_t addr)
   return memspeed;
 }
 */
+
+//fill the cache: return True if the cache has clean space, return False if the filling fails
+int fillCache(struct cache *memory, uint32_t index, uint32_t tag) {
+  int fillResult = FALSE;
+  uint32_t row = index*memory.assocNum;
+  for(int i = 0; i < memory.assocNum; i++) {
+    if(memory.blocks[row + i].valid == TRUE) {
+      memory.blocks[row + i].valid = FALSE;
+      memory.blocks[row + i].tag = tag;
+      fillResult = TRUE;
+      break;
+    }
+  }
+  return fillResult;
+}
+ 
