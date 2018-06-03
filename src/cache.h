@@ -14,7 +14,7 @@
 #include <math.h>
 #include <ctype.h>
 #include <string.h>
-//
+#include <inttypes.h>
 // Student Information
 //
 extern const char *studentName;
@@ -27,7 +27,7 @@ extern const char *email;
 
 #define TRUE 1
 #define FALSE 0
-#define MAX_BITS = 32;
+#define MAX_BITS 32
 //------------------------------------//
 //        Cache Configuration         //
 //------------------------------------//
@@ -68,6 +68,31 @@ extern uint64_t l2cachePenalties; // L2$ penalties
 //      Cache Function Prototypes     //
 //------------------------------------//
 
+struct cacheBlock {
+  uint32_t tag;
+  uint32_t address; //address recorded
+  uint32_t RU; //recently used
+  //bool dirty;
+  int valid;
+};
+
+struct cache {
+  //parameters
+  uint32_t blockSize; //size for one block
+  uint32_t blockNum;  //total block number 
+  uint32_t assocNum;  //associaitiivty of a cache
+  uint32_t setNum;    //set number of a cache
+  uint32_t hitTime;
+
+  uint32_t indexBits;
+  uint32_t offsetBits;
+  uint32_t tagBits;
+
+  struct cacheBlock *blocks;
+  struct cache *victim;
+  struct cache *nextLevel;
+};
+
 // Initialize the predictor
 //
 void initBlocks(struct cache* memory, uint32_t blockNum);
@@ -76,21 +101,21 @@ void initCache(struct cache* memory, uint32_t blocksize, uint32_t cacheSets, uin
 
 void init_cache();
 
-void freeCache(cache *memory);
+void freeCache(struct cache *memory);
 
 // Perform a memory access through the icache interface for the address 'addr'
 // Return the access time for the memory operation
 //
-int checkHitMiss(cache* memory, uint32_t index, uint32_t tag);
+int checkHitMiss(struct cache* memory, uint32_t index, uint32_t tag);
 
 
 uint64_t accessCache(struct cache* memory, uint32_t addr, char mode);
 
 uint32_t icache_access(uint32_t addr);
 
-uint32_t decodeTag(cache* memory, uint32_t addr);
+uint32_t decodeTag(struct cache* memory, uint32_t addr);
 
-uint32_t decodeIndex(cache* memory, uint32_t addr);
+uint32_t decodeIndex(struct cache* memory, uint32_t addr);
 
 // Perform a memory access through the dcache interface for the address 'addr'
 // Return the access time for the memory operation
