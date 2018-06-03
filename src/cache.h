@@ -97,14 +97,21 @@ uint32_t decodeIndex(cache* memory, uint32_t addr);
 //
 uint32_t dcache_access(uint32_t addr);
 
-int accessVictimCache(struct cache *memory, uint32_t index, uint32_t tag, char mode);
+int accessVictimCache(struct cache *memory, uint32_t addr, uint32_t index, uint32_t tag, char mode);
 
-int createSpace(struct cache* memory, uint32_t index, uint32_t tag);
+//int createSpace(struct cache* memory, uint32_t index, uint32_t tag);
 
 void updateLRU(struct cache *memory, uint32_t index, uint32_t tag);
 
-int fillCache(struct cache *memory, uint32_t index, uint32_t tag);
+int fillCache(struct cache *memory, uint32_t addr);
 
+void fillL2Cache(struct cache *memory, uint32_t addr);
+
+void deleteL2Cache(struct cache *memory, uint32_t addr);
+
+void fillOrDeleteL2(struct cache* memory, uint32_t addr, int isInclusive);
+
+void swapCache(struct cache* memory, uint32_t addr);
 // Perform a memory access to the l2cache for the address 'addr'
 // Return the access time for the memory operation
 //
