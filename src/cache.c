@@ -84,19 +84,19 @@ void initCache(struct cache* memory, uint32_t blocksize, uint32_t cacheSets, uin
   memory->setNum = cacheSets;
   memory->assocNum = cacheAssoc;
   memory->hitTime = hitTime;
-  printf("    basic parameters setting finish...\n");
+  //printf("    basic parameters setting finish...\n");
   memory->offsetBits = log2(memory->blockSize);
   memory->indexBits = log2(memory->setNum);
   memory->tagBits = MAX_BITS - (memory->offsetBits) - (memory->indexBits);
   memory->blockNum = memory->setNum*memory->assocNum;  
-  printf("    bits caclulation finish...\n");
-  memory->blocks = (struct cacheBlock*)malloc(sizeof(struct cacheBlock)*memory->setNum*memory->assocNum);
+  //printf("    bits caclulation finish...\n");
+  memory->blocks = (struct cacheBlock*)malloc(sizeof(struct cacheBlock)*(memory->setNum)*(memory->assocNum));
   initBlocks(memory, memory->blockNum);
-  printf("    blocks assign finish...\n");
+  //printf("    blocks assign finish...\n");
   if(isL2 == FALSE){
     //initCache(memory->victim, blocksize, 1, 1, hitTime, TRUE);
     memory->nextLevel = l2Cache;
-    printf("    assign L2Cache");
+    //printf("    assign L2Cache\n");
   }else{
     return;
   }
@@ -108,7 +108,7 @@ void
 init_cache()
 {
   // Initialize cache stats
-  printf("init begin...\n");
+  //printf("init begin...\n");
   icacheRefs        = 0;
   icacheMisses      = 0;
   icachePenalties   = 0;
@@ -122,7 +122,7 @@ init_cache()
   l2cachePenalties  = 0;
   
   //iCache
-  printf("  icache init begin...\n");
+  //printf("  icache init begin...\n");
   if(icacheAssoc > 0 && icacheSets > 0 && blocksize > 0) {
     iCache = (struct cache*)malloc(sizeof(struct cache));
     //memory->blocks = (struct cacheBlock*)malloc(sizeof(struct cacheBlock)*memory->setNum*memory->assocNum);
@@ -130,30 +130,40 @@ init_cache()
   }
 
   //dCache
-  printf("  dcache init begin...\n");
+  //printf("  dcache init begin...\n");
   if(dcacheAssoc > 0 && dcacheSets > 0 && blocksize > 0) {
     dCache = (struct cache*)malloc(sizeof(struct cache)); 
     initCache(dCache, blocksize, dcacheSets, dcacheAssoc, dcacheHitTime, FALSE);
   }  
   //L2Cache
-  if(icacheSets != 0) {
-    printf("  l2cache init begin...\n");
-    l2Cache = (struct cache*)malloc(sizeof(struct cache)); 
+  if(iCache != NULL || dCache != NULL) {
+    //printf("  l2cache init begin...\n");
+    l2Cache = (struct cache*)malloc(sizeof(struct cache));
+    if(dCache != NULL) dCache->nextLevel = l2Cache;
+    if(iCache != NULL) iCache->nextLevel = l2Cache;
     initCache(l2Cache, blocksize, l2cacheSets, l2cacheAssoc, l2cacheHitTime, TRUE);
   }
-  printf("init successful!!!\n");
+  //printf("init successful!!!\n");
 
 }
 
 //free memory
 void freeCache(struct cache *memory) {
+  if(memory->nextLevel->blockNum != 0) freeCache(memory->nextLevel);
   free(memory->blocks);
   free(memory);
 }
 
+void cleanSpace() {
+  if(iCache->blockNum != 0) freeCache(iCache);
+  if(dCache->blockNum != 0) freeCache(dCache);
+}
 //calculate the Index
 uint32_t decodeIndex(struct cache* memory, uint32_t addr) {
-  if(memory->indexBits == 0) return 0;
+  //if(memory == NULL) printf("error!");
+  if(memory->indexBits != 0) {
+    return 0;
+  }
   else {
     addr = addr >> memory->offsetBits;
     uint32_t operand = 0;
@@ -167,6 +177,7 @@ uint32_t decodeIndex(struct cache* memory, uint32_t addr) {
 
 //calculate the Tag
 uint32_t decodeTag(struct cache* memory, uint32_t addr) {
+  //printf("  decodeTage cal begin\n");
   addr = addr >> (memory->offsetBits + memory->indexBits);
   return addr; 
 }
@@ -203,27 +214,37 @@ int checkHitMiss(struct cache* memory, uint32_t addr) {
 }
 
 uint64_t accessCache(struct cache* memory, uint32_t addr, char mode) {
+  //printf("  parameters define begin...\n");
   uint32_t index, tag;
   uint64_t timeCost = 0;
   int queryVictim = 0;
-
+  //printf("  parameters define finish...\n");
+  
   index = decodeIndex(memory, addr);
+  //printf("  index calculate finish...\n");
   tag = decodeTag(memory, addr);
+  //printf("  parameters calculate finish...\n");
 
   int queryResult = checkHitMiss(memory, addr);
+  
+  //printf("  check cache access begin...\n");
 
   if(queryResult >= 0) {
+    //printf("    in the cache\n");
     if(mode == 'i') {
+      printf("  i has\n");
       icacheRefs++;
       timeCost += icachePenalties;
       updateLRU(memory, addr);
     }
     if(mode == 'd') {
+      printf("  c has\n");
       dcacheRefs++;
       timeCost += dcachePenalties;
       updateLRU(memory, addr);
     }
     if(mode == 'l') {
+      printf("  l2 has\n");
       l2cacheRefs++;
       timeCost += l2cachePenalties;
       //swapCache(memory, addr);//swap the content in l1 and l2;
@@ -231,25 +252,27 @@ uint64_t accessCache(struct cache* memory, uint32_t addr, char mode) {
     //if(queryVictim == 0) {
     //}
   }else {
+    //printf("    not in the cache\n");
     //record the miss
     if(mode == 'i') {
+      printf("  i not\n");
       icacheMisses++;
       timeCost += icachePenalties;
       timeCost += accessCache(memory->nextLevel, addr, 'l');
-      //int l2QueryRes = checkHitMiss(memory->nextLevel, addr);
-      swapCache(memory, addr);
+      //swapCache(memory, addr);
     }
     if(mode == 'd') {
+      printf("  d not\n");
       dcacheMisses++;
       timeCost += dcachePenalties;
       timeCost += accessCache(memory->nextLevel, addr, 'l');
-      swapCache(memory, addr);
+      //swapCache(memory, addr);
     }
     if(mode == 'l') {
+      printf("  l2 has\n");
       l2cacheMisses++;
       timeCost += l2cachePenalties;
       timeCost += memspeed;
-      //swapCache(memory, addr);//swap the content in l1 and l2;
     }
     //addr not in the l1cache
     //if(mode == 'i' || mode == 'd') {
@@ -263,8 +286,11 @@ uint64_t accessCache(struct cache* memory, uint32_t addr, char mode) {
       //if victim not in use/not found, search in L2
       //swapCache(memory, addr);//swap the content in l1 and l2;
     //}
-}
+  }
+  //printf("  accessCache() exit successful...\n");
   return timeCost;
+  
+  //return 0;
 }
 
 void swapCache(struct cache* memory, uint32_t addr) {
@@ -294,8 +320,10 @@ void swapCache(struct cache* memory, uint32_t addr) {
 }
 uint32_t
 icache_access(uint32_t addr)
-{
+{ 
+  printf("using icache begin... \n");
   uint32_t memspeed = (uint32_t)accessCache(iCache, addr, 'i');
+  printf("using icache finish... \n\n");
   return memspeed;
 }
 
@@ -308,7 +336,9 @@ dcache_access(uint32_t addr)
   //
   //TODO: Implement D$
   //
+  printf("using dcache begin... \n");
   uint32_t memspeed = (uint32_t)accessCache(dCache, addr, 'd');
+  printf("using dcache finish... \n\n");
   return memspeed;
 }
 

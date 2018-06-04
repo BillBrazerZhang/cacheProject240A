@@ -129,5 +129,6 @@ void deleteL2Cache(struct cache *memory, uint32_t addr);
 
 void swapCache(struct cache* memory, uint32_t addr);
 
+void cleanSpace();
 
 #endif
