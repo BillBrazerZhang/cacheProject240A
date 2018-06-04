@@ -178,8 +178,7 @@ uint32_t decodeIndex(struct cache* memory, uint32_t addr) {
 //calculate the Tag
 uint32_t decodeTag(struct cache* memory, uint32_t addr) {
   //printf("  decodeTage cal begin\n");
-  addr = addr >> memory->offsetBits;
-  addr = addr >> memory->indexBits;
+  addr = addr >> (memory->offsetBits + memory->indexBits);
   return addr; 
 }
 
@@ -196,7 +195,7 @@ void updateLRU(struct cache *memory, uint32_t addr) {
   }
   uint32_t currRU = memory->blocks[(index*memory->assocNum) + column].RU;
   for(uint32_t i = 0; i < memory->assocNum; i++) {
-    if(memory->blocks[(index*memory->assocNum) + i].valid ==FALSE && memory->blocks[(index*memory->assocNum) + i].RU < currRU) {
+    if(memory->blocks[(index*memory->assocNum) + i].RU < currRU) {
         memory->blocks[(index*memory->assocNum) + i].RU++;    
       }
   }
@@ -248,7 +247,6 @@ uint32_t accessCache(struct cache* memory, uint32_t addr, char mode) {
       //printf("  l2 has\n");
       l2cacheRefs++;
       timeCost += l2cacheHitTime;
-      updateLRU(memory, addr);
       //l2cachePenalties += l2cacheHitTime;
       //swapCache(memory, addr);//swap the content in l1 and l2;
     }else {
@@ -263,16 +261,15 @@ uint32_t accessCache(struct cache* memory, uint32_t addr, char mode) {
       //printf("  i not\n");
       icacheMisses++;
       //timeCost += icacheHitTime;
-      timeCost = accessCache(memory->nextLevel, addr, 'l');
-      icachePenalties = accessCache(memory->nextLevel, addr, 'l');
-
+      icachePenalties += icacheHitTime;
+      timeCost += accessCache(memory->nextLevel, addr, 'l');
       tmp = fillCache(memory, addr);
       if(inclusive) {
-        if(checkHitMiss(memory->nextLevel, addr) != -1) tmp = fillCache(memory->nextLevel, addr);
-        if(checkHitMiss(memory->nextLevel, tmp) != -1) tmp = fillCache(memory->nextLevel, tmp);
+        tmp = fillCache(memory->nextLevel, addr);
+        if(checkHitMiss(memory, tmp) == -1) tmp = fillCache(memory->nextLevel, tmp);
       }else{
-        if(checkHitMiss(memory->nextLevel, addr) != -1) deleteL2Cache(memory->nextLevel, addr);
-        if(checkHitMiss(memory->nextLevel, tmp) != -1) tmp = fillCache(memory->nextLevel, tmp);
+        deleteL2Cache(memory->nextLevel, addr);
+        if(checkHitMiss(memory, tmp) == -1) tmp = fillCache(memory->nextLevel, tmp);
       }
       //swapCache(memory, addr);
     }
@@ -281,16 +278,15 @@ uint32_t accessCache(struct cache* memory, uint32_t addr, char mode) {
       //icacheRefs++;
       dcacheMisses++;
       //timeCost += dcacheHitTime;
-      timeCost = accessCache(memory->nextLevel, addr, 'l');
-      dcachePenalties += accessCache(memory->nextLevel, addr, 'l');
-
+      dcachePenalties += dcacheHitTime;
+      timeCost += accessCache(memory->nextLevel, addr, 'l');
       tmp = fillCache(memory, addr);
       if(inclusive) {
-        if(checkHitMiss(memory->nextLevel, addr) != -1) tmp = fillCache(memory->nextLevel, addr);
-        if(checkHitMiss(memory->nextLevel, tmp) != -1) tmp = fillCache(memory->nextLevel, tmp);
+        tmp = fillCache(memory->nextLevel, addr);
+        if(checkHitMiss(memory, tmp) == -1) tmp = fillCache(memory->nextLevel, tmp);
       }else{
-        if(checkHitMiss(memory->nextLevel, addr) != -1) deleteL2Cache(memory->nextLevel, addr);
-        if(checkHitMiss(memory->nextLevel, tmp) != -1) tmp = fillCache(memory->nextLevel, tmp);
+        deleteL2Cache(memory->nextLevel, addr);
+        if(checkHitMiss(memory, tmp) == -1) tmp = fillCache(memory->nextLevel, tmp);
       }
       //swapCache(memory, addr);
     }
@@ -298,8 +294,8 @@ uint32_t accessCache(struct cache* memory, uint32_t addr, char mode) {
       //printf("  l2 has\n");
       l2cacheMisses++;
       //timeCost += l2cacheHitTime;
-      l2cachePenalties += memspeed;
-      timeCost = memspeed;
+      l2cachePenalties += l2cacheHitTime;
+      timeCost += memspeed;
       tmp = fillCache(memory, addr);
     }else {
       printf("something wrong\n");
