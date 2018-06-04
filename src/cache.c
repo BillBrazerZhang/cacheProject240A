@@ -69,7 +69,7 @@ struct cache *l2Cache = NULL;
 // Initialize the blocks
 void initBlocks(struct cache* memory, uint32_t blockNum) {
   for(uint32_t i = 0; i < blockNum; i++) {
-    memory->blocks[i].tag = 0;
+    //memory->blocks[i].tag = 0;
     memory->blocks[i].address = 0;
     memory->blocks[i].RU = memory->assocNum - 1;
     //memory->blocks[i].dirty = FALSE;
@@ -189,11 +189,14 @@ void updateLRU(struct cache *memory, uint32_t addr) {
   uint32_t column = checkHitMiss(memory, addr);
   uint32_t index = decodeIndex(memory, addr);
 
-  if(column == -1) return;
+  if(column == -1 || (index*memory->assocNum) + column > memory->blockNum) return;
   uint32_t currRU = memory->blocks[(index*memory->assocNum) + column].RU;
   for(uint32_t i = 0; i < memory->assocNum; i++) {
-    if(memory->blocks[(index*memory->assocNum) + i].valid == 1 && memory->blocks[(index*memory->assocNum) + i].RU < currRU) {
-      memory->blocks[(index*memory->assocNum) + i].RU++;
+    if((index*memory->assocNum) + i < memory->blockNum && memory->blocks[(index*memory->assocNum) + i].valid == FALSE && memory->blocks[(index*memory->assocNum) + i].RU < currRU) {
+      if(memory->blocks[(index*memory->assocNum) + i].RU == memory->assocNum - 1) {}
+      else {
+        memory->blocks[(index*memory->assocNum) + i].RU++;
+      }
     }
   }
   memory->blocks[(index*memory->assocNum) + column].RU = 0;
@@ -202,28 +205,23 @@ void updateLRU(struct cache *memory, uint32_t addr) {
 
 int checkHitMiss(struct cache* memory, uint32_t addr) {
   uint32_t index = decodeIndex(memory, addr);
-  uint32_t tag = decodeTag(memory, addr);
+  //uint32_t tag = decodeTag(memory, addr);
 
   uint32_t row = index*memory->assocNum;
 
   for(int i = 0; i < memory->assocNum; i++) {
-    if(memory->blocks[row + i].valid == TRUE && memory->blocks[row + i].address == addr)
+    if(memory->blocks[row + i].address == addr)
       return i;
   }
   return -1; //404 not found
 }
 
-uint64_t accessCache(struct cache* memory, uint32_t addr, char mode) {
+uint32_t accessCache(struct cache* memory, uint32_t addr, char mode) {
   //printf("  parameters define begin...\n");
-  uint32_t index, tag;
-  uint64_t timeCost = 0;
-  int queryVictim = 0;
-  //printf("  parameters define finish...\n");
+  uint32_t index;
+  uint32_t timeCost = 0;
   
   index = decodeIndex(memory, addr);
-  //printf("  index calculate finish...\n");
-  tag = decodeTag(memory, addr);
-  //printf("  parameters calculate finish...\n");
 
   int queryResult = checkHitMiss(memory, addr);
   
@@ -232,21 +230,24 @@ uint64_t accessCache(struct cache* memory, uint32_t addr, char mode) {
   if(queryResult >= 0) {
     //printf("    in the cache\n");
     if(mode == 'i') {
-      printf("  i has\n");
+      //printf("  i has\n");
       icacheRefs++;
-      timeCost += icachePenalties;
+      timeCost += icacheHitTime;
+      icachePenalties += icacheHitTime;
       updateLRU(memory, addr);
     }
     if(mode == 'd') {
-      printf("  c has\n");
+      //printf("  c has\n");
       dcacheRefs++;
-      timeCost += dcachePenalties;
+      timeCost += dcacheHitTime;
+      dcachePenalties += dcacheHitTime;
       updateLRU(memory, addr);
     }
     if(mode == 'l') {
-      printf("  l2 has\n");
+      //printf("  l2 has\n");
       l2cacheRefs++;
-      timeCost += l2cachePenalties;
+      timeCost += l2cacheHitTime;
+      l2cachePenalties += l2cacheHitTime;
       //swapCache(memory, addr);//swap the content in l1 and l2;
     }
     //if(queryVictim == 0) {
@@ -255,37 +256,30 @@ uint64_t accessCache(struct cache* memory, uint32_t addr, char mode) {
     //printf("    not in the cache\n");
     //record the miss
     if(mode == 'i') {
-      printf("  i not\n");
+      //printf("  i not\n");
       icacheMisses++;
-      timeCost += icachePenalties;
+      timeCost += icacheHitTime;
+      icachePenalties += icacheHitTime;
       timeCost += accessCache(memory->nextLevel, addr, 'l');
-      //swapCache(memory, addr);
+      swapCache(memory, addr);
     }
     if(mode == 'd') {
-      printf("  d not\n");
+      //printf("  d not\n");
+      //icacheRefs++;
       dcacheMisses++;
-      timeCost += dcachePenalties;
+      timeCost += dcacheHitTime;
+      dcachePenalties += dcacheHitTime;
       timeCost += accessCache(memory->nextLevel, addr, 'l');
-      //swapCache(memory, addr);
+      swapCache(memory, addr);
     }
     if(mode == 'l') {
-      printf("  l2 has\n");
+      //printf("  l2 has\n");
       l2cacheMisses++;
-      timeCost += l2cachePenalties;
+      timeCost += l2cacheHitTime;
+      l2cachePenalties += l2cacheHitTime;
       timeCost += memspeed;
     }
-    //addr not in the l1cache
-    //if(mode == 'i' || mode == 'd') {
-      //check if the victim is in use
-      //if(memory->victim != NULL && memory->victim->blocks[0].valid == FALSE) {
-        //in use
-        //int queryVictimResult = accessVictimCache(memory, addr, index, tag, mode);
-        //timeCost += (mode == 'i')? icachePenalties : dcachePenalties;
-        //if(queryVictimResult == TRUE) return timeCost;
-      //}
-      //if victim not in use/not found, search in L2
-      //swapCache(memory, addr);//swap the content in l1 and l2;
-    //}
+
   }
   //printf("  accessCache() exit successful...\n");
   return timeCost;
@@ -294,15 +288,6 @@ uint64_t accessCache(struct cache* memory, uint32_t addr, char mode) {
 }
 
 void swapCache(struct cache* memory, uint32_t addr) {
-  //currently not in l1 nor l2;
-  uint32_t index = decodeIndex(memory, addr);
-  uint32_t tag = decodeTag(memory, addr);
-
-  uint32_t l2Index = decodeIndex(memory->nextLevel, addr);
-  uint32_t l2Tag = decodeTag(memory->nextLevel, addr);
-
-  //int l2QueryRes = checkHitMiss(memory->nextLevel, addr);
-  //uint32_t tempTag = memory->victim->blocks[0].tag;
 
   uint32_t tempAddr = fillCache(memory, addr);
   if(tempAddr == 0) return; //fill in the new block successful
@@ -321,24 +306,22 @@ void swapCache(struct cache* memory, uint32_t addr) {
 uint32_t
 icache_access(uint32_t addr)
 { 
-  printf("using icache begin... \n");
-  uint32_t memspeed = (uint32_t)accessCache(iCache, addr, 'i');
-  printf("using icache finish... \n\n");
+  //printf("using icache begin... \n");
+  uint32_t memspeed = accessCache(iCache, addr, 'i');
+  //printf("using icache finish... \n\n");
   return memspeed;
 }
 
-// Perform a memory access through the dcache interface for the address 'addr'
-// Return the access time for the memory operation
-//
+
 uint32_t
 dcache_access(uint32_t addr)
 {
   //
   //TODO: Implement D$
   //
-  printf("using dcache begin... \n");
-  uint32_t memspeed = (uint32_t)accessCache(dCache, addr, 'd');
-  printf("using dcache finish... \n\n");
+  //printf("using dcache begin... \n");
+  uint32_t memspeed = accessCache(dCache, addr, 'd');
+  //printf("using dcache finish... \n\n");
   return memspeed;
 }
 
@@ -358,9 +341,9 @@ uint32_t fillCache(struct cache *memory, uint32_t addr) {
   for(int i = 0; i < memory->assocNum; i++) {
     if(memory->blocks[row + i].valid == TRUE) {
       memory->blocks[row + i].valid = FALSE;
-      memory->blocks[row + i].tag = tag;
+      //memory->blocks[row + i].tag = tag;
       memory->blocks[row + i].address = addr;
-      fillResult = -1;
+      fillResult = 0;
       updateLRU(memory, addr);
       return fillResult;
     }
@@ -390,180 +373,12 @@ void deleteL2Cache(struct cache *memory, uint32_t addr) {
       memory->blocks[row + i].valid = TRUE;
       memory->blocks[row + i].RU = memory->assocNum - 1;
       memory->blocks[row + i].address = 0;
-      memory->blocks[row + i].tag = 0;     
+      //memory->blocks[row + i].tag = 0;     
       return;
     }
   }
   return;
 } 
 
-/*uint32_t fillL2Cache(struct cache *memory, uint32_t addr) {
-  uint32_t index = decodeIndex(memory, addr);
-  uint32_t tag = decodeTag(memory, addr);
-  uint32_t fillResult = 0;
-  uint32_t row = index*memory->assocNum;
-  for(int i = 0; i < memory->assocNum; i++) {
-    if(memory->blocks[row + i].valid == TRUE) {
-      memory->blocks[row + i].valid = FALSE;
-      memory->blocks[row + i].tag = tag;
-      memory->blocks[row + i].address = addr;
-      fillResult = -1;
-      updateLRU(memory, index, tag);
-      return;
-    }
-  }
 
-  uint32_t replaceLRU = memory->blocks[row].RU;
-  int swapPos = 0;
-  for(int i = 0; i < memory->assocNum; i++) {
-    if(replaceLRU < memory->blocks[row + i].RU) {
-      replaceLRU = memory->blocks[row + i].RU;
-      swapPos = i;
-    }
-  }
-  memory->blocks[row + swapPos].valid = FALSE;
-  memory->blocks[row + swapPos].tag = tag;
-  memory->blocks[row + swapPos].address = addr;
-  updateLRU(memory, index, tag);
-
-  return;
-}
-*/
-
-/*
-int createSpace(struct cache* memory, uint32_t index, uint32_t tag) {
-  uint32_t row = index * memory->assocNum;
-  int  i = 0;
-  for(i; i < memory->assocNum; i++) {
-    if(memory->blocks[row + i].count == (memory->assocNum -1))
-      break;
-  }
-
-  uint32_t blockAddress;
-  blockAddress = memory->blocks[row + i].tag << memory->indexBits;
-  blockAddress = blockAddress << memory->offsetBits;
-  blockAddress = blockAddress + (index<<memory->offsetBits);
-
-  if(memory->blocks[row + i].valid == 1 && memory->nextLevel != NULL) {
-    accessCache(memory->nextLevel, blockAddress, 'l');
-  }
-
-  memory->blocks[row + i].tag = 0;
-  memory->blocks[row + i].valid = 0;
-  memory->blocks[row + i].count = memory->assocNum - 1;
-
-  return j;
-
-}
-*/
-
-//access Victim, if the result hits the victim, swap the value, update the count,
-//return the result indicate if hits
-
-/*int accessVictimCache(struct cache *memory, uint32_t addr, uint32_t index, uint32_t tag, char mode)
-{
-  int query = FALSE;
-  if(memory->victim->blocks[0].address == addr) {
-    //find the result in the victim cache
-    query = TRUE;
-    //swap value with l1cache
-    uint32_t row = index * memory->assocNum;
-    uint32_t replaceLRU = memory->blocks[row].RU;
-    uint32_t swapPos = 0;
-    uint32_t i = 0;
-    for(i = 0; i < memory->assocNum; i++) {
-      if(replaceLRU < memory->blocks[row + i].RU) {
-        replaceLRU = memory->blocks[row + i].RU;
-        swapPos = i;
-      }
-    }
-    memory->victim->blocks[0].tag = memory->blocks[row + i].tag;
-    memory->victim->blocks[0].address = memory->blocks[row + i].address;
-
-    memory->blocks[row + i].tag = tag;
-    memory->blocks[row + i].address = addr;
-    updateLRU(memory, index, tag);
-    return query;
-  }else {
-    return FALSE;
-  }   
-}
-*/
-     /*int j;
-     uint32_t row = index * memory->assocNum;
-     for(j=0;j<memory->assocNum;j++)
-     {
-        //assert(memory->blocks[row + j].count <= (memory->assocNum - 1));
-        if( memory->blocks[row + j].valid == 0)
-        {
-             return 0;
-        }
-     }
-     uint32_t requiredAddress;
-     requiredAddress = tag<<memory->indexBits;
-     requiredAddress = requiredAddress<<memory->offsetBits;
-     requiredAddress = requiredAddress + (index<<memory->offsetBits);
-
-     for(j=0;j<memory->assocNum;j++)
-     {
-        //assert(mem->blocks[row + j].count <= (mem->assoc - 1));
-        if( memory->blocks[row + j].count == (memory->assocNum - 1)) {
-             break;
-        }
-     }
-     //assert(j <= (mem->assoc - 1));
-
-     uint32_t identifiedAddress;
-     identifiedAddress = memory->blocks[row+j].tag<<memory->indexBits;
-     identifiedAddress = identifiedAddress<<memory->offsetBits;
-     identifiedAddress = identifiedAddress + (index<<memory->offsetBits);
-     
-     //assert(mem->vc->rows == 1);
-
-     //INFO: victim hit or miss
-     int column;
-     column = checkHitMiss(memory->victim, decodeTag(memory->victim, requiredAddress),0);
-     if(column < 0)
-     {
-
-         //memory->victim->readMiss++;
-         column = createSpace(memory->victim,decodeTag(memory->victim, identifiedAddress), 0);
-         if(memory->nextLevel != NULL)
-         {
-            accessCache(memory->nextLevel, requiredAddress, mode);
-         }
-         memory->blocks[row + j].valid = 1;
-         memory->blocks[row + j].tag = tag;
-         memory->victim->blocks[column].tag = decodeTag(memory->victim, identifiedAddress);
-         memory->victim->blocks[column].valid = 1;
-         updateLRU(memory->victim, 0, column);
-         updateLRU(memory, index, j);
-     }
-     else
-     {
-         //memory->victim->readhi
-         //mem->swaps++;
-         memory->victim->blocks[column].tag = decodeTag(memory->victim, identifiedAddress);
-         memory->victim->blocks[column].valid = 1;
-         updateLRU(memory->victim, 0, column);
-         memory->blocks[row + j].valid = 1;
-         memory->blocks[row + j].tag = tag;
-         updateLRU(memory, index, j);
-     }
-         //DEBUG HELP: printf("%d %d %d %d\n",mem->vc->read_hits,mem->vc->read_misses,mem->vc->write_hits,mem->vc->write_misses);
-     return 1;
-     */
-
-// Perform a memory access to the l2cache for the address 'addr'
-// Return the access time for the memory operation
-//
-/*uint32_t
-l2cache_access(uint32_t addr)
-{
-  //
-  //TODO: Implement L2$
-  //
-  return memspeed;
-}
-*/
 
