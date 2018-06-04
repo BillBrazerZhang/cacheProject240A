@@ -105,7 +105,7 @@ void init_cache();
 void freeCache(struct cache *memory);
 
 
-uint64_t accessCache(struct cache* memory, uint32_t addr, char mode);
+uint32_t accessCache(struct cache* memory, uint32_t addr, char mode);
 
 uint32_t icache_access(uint32_t addr);
 

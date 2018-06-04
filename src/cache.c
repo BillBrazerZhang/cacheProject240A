@@ -183,21 +183,21 @@ uint32_t decodeTag(struct cache* memory, uint32_t addr) {
 }
 
 
-//replace the LRU
+//replace the LRU 
 void updateLRU(struct cache *memory, uint32_t addr) {
 
   uint32_t column = checkHitMiss(memory, addr);
   uint32_t index = decodeIndex(memory, addr);
 
-  if(column == -1 || (index*memory->assocNum) + column > memory->blockNum) return;
+  if(column == -1 || (index*memory->assocNum) + column > memory->blockNum) {
+    printf("miss\n");
+    return;
+  }
   uint32_t currRU = memory->blocks[(index*memory->assocNum) + column].RU;
   for(uint32_t i = 0; i < memory->assocNum; i++) {
-    if((index*memory->assocNum) + i < memory->blockNum && memory->blocks[(index*memory->assocNum) + i].valid == FALSE && memory->blocks[(index*memory->assocNum) + i].RU < currRU) {
-      if(memory->blocks[(index*memory->assocNum) + i].RU == memory->assocNum - 1) {}
-      else {
-        memory->blocks[(index*memory->assocNum) + i].RU++;
+    if(memory->blocks[(index*memory->assocNum) + i].RU < currRU) {
+        memory->blocks[(index*memory->assocNum) + i].RU++;    
       }
-    }
   }
   memory->blocks[(index*memory->assocNum) + column].RU = 0;
   return; //most recently used -> LRU: 0 -> assocNum - 1 
@@ -205,12 +205,12 @@ void updateLRU(struct cache *memory, uint32_t addr) {
 
 int checkHitMiss(struct cache* memory, uint32_t addr) {
   uint32_t index = decodeIndex(memory, addr);
-  //uint32_t tag = decodeTag(memory, addr);
+  uint32_t Tag = decodeTag(memory, addr);
 
   uint32_t row = index*memory->assocNum;
 
   for(int i = 0; i < memory->assocNum; i++) {
-    if(memory->blocks[row + i].address == addr)
+    if(memory->blocks[row + i].tag == Tag)
       return i;
   }
   return -1; //404 not found
@@ -226,7 +226,7 @@ uint32_t accessCache(struct cache* memory, uint32_t addr, char mode) {
   int queryResult = checkHitMiss(memory, addr);
   
   //printf("  check cache access begin...\n");
-
+  uint32_t tmp = 0;
   if(queryResult >= 0) {
     //printf("    in the cache\n");
     if(mode == 'i') {
@@ -261,7 +261,15 @@ uint32_t accessCache(struct cache* memory, uint32_t addr, char mode) {
       timeCost += icacheHitTime;
       icachePenalties += icacheHitTime;
       timeCost += accessCache(memory->nextLevel, addr, 'l');
-      swapCache(memory, addr);
+      tmp = fillCache(memory, addr);
+      if(inclusive) {
+        tmp = fillCache(memory->nextLevel, addr);
+        tmp = fillCache(memory->nextLevel, tmp);
+      }else{
+        deleteL2Cache(memory->nextLevel, addr);
+        tmp = fillCache(memory->nextLevel, tmp);
+      }
+      //swapCache(memory, addr);
     }
     if(mode == 'd') {
       //printf("  d not\n");
@@ -270,7 +278,15 @@ uint32_t accessCache(struct cache* memory, uint32_t addr, char mode) {
       timeCost += dcacheHitTime;
       dcachePenalties += dcacheHitTime;
       timeCost += accessCache(memory->nextLevel, addr, 'l');
-      swapCache(memory, addr);
+      tmp = fillCache(memory, addr);
+      if(inclusive) {
+        tmp = fillCache(memory->nextLevel, addr);
+        tmp = fillCache(memory->nextLevel, tmp);
+      }else{
+        deleteL2Cache(memory->nextLevel, addr);
+        tmp = fillCache(memory->nextLevel, tmp);
+      }
+      //swapCache(memory, addr);
     }
     if(mode == 'l') {
       //printf("  l2 has\n");
@@ -278,6 +294,7 @@ uint32_t accessCache(struct cache* memory, uint32_t addr, char mode) {
       timeCost += l2cacheHitTime;
       l2cachePenalties += l2cacheHitTime;
       timeCost += memspeed;
+      tmp = fillCache(memory, addr);
     }
 
   }
@@ -293,8 +310,10 @@ void swapCache(struct cache* memory, uint32_t addr) {
   if(tempAddr == 0) return; //fill in the new block successful
   else {
     if(inclusive) {
+      //printf("begin\n");
       tempAddr = fillCache(memory->nextLevel, tempAddr);
       tempAddr = fillCache(memory->nextLevel, addr);
+      //printf("end\n");
     }else {
       tempAddr = fillCache(memory->nextLevel, tempAddr);
       deleteL2Cache(memory->nextLevel, addr);
@@ -328,39 +347,48 @@ dcache_access(uint32_t addr)
 //fill the cache: return True if the cache has clean space, return False if the filling fails
 uint32_t fillCache(struct cache *memory, uint32_t addr) {
   uint32_t index = decodeIndex(memory, addr);
-  uint32_t tag = decodeTag(memory, addr);
+  uint32_t row = index*(memory->assocNum);
+  uint32_t Tag = decodeTag(memory, addr);
   uint32_t fillResult = 0;
-
+  //if address has existed
   int queryExist = checkHitMiss(memory, addr);
+  //if(memory == iCache) printf("%d\n", queryExist);
   if(queryExist >= 0) {
+    memory->blocks[row + queryExist].address = addr;
+    memory->blocks[row + queryExist].tag = Tag;
+    memory->blocks[row + queryExist].valid = FALSE;
     updateLRU(memory, addr);
+    //printf("    1\n");
     return fillResult;
-  }
-
-  uint32_t row = index*memory->assocNum;
-  for(int i = 0; i < memory->assocNum; i++) {
-    if(memory->blocks[row + i].valid == TRUE) {
-      memory->blocks[row + i].valid = FALSE;
-      //memory->blocks[row + i].tag = tag;
-      memory->blocks[row + i].address = addr;
-      fillResult = 0;
-      updateLRU(memory, addr);
-      return fillResult;
+  }else {
+    //if address not exists, there is some clean room
+    uint32_t replaceLRU = memory->blocks[row].RU;
+    int swapPos = 0;
+    for(int i = 0; i < memory->assocNum; i++) {
+      if(memory->blocks[row + i].valid == TRUE) {
+        memory->blocks[row + i].valid = FALSE;
+        //memory->blocks[row + i].tag = tag;
+        memory->blocks[row + i].address = addr;
+        memory->blocks[row + i].tag = Tag;
+        fillResult = 0;
+        updateLRU(memory, addr);
+        //printf("    2\n");
+        return fillResult;
+      }else {
+        if(replaceLRU < memory->blocks[row + i].RU) {
+          replaceLRU = memory->blocks[row + i].RU;
+          swapPos = i;
+        }
+      }
     }
-  }
+    fillResult = memory->blocks[row + swapPos].address;
+    memory->blocks[row + swapPos].address = addr;
+    memory->blocks[row + swapPos].tag = Tag;    
+    updateLRU(memory, addr);
+    //printf("    3\n");
+    return fillResult;
 
-  uint32_t replaceLRU = memory->blocks[row].RU;
-  int swapPos = 0;
-  for(int i = 0; i < memory->assocNum; i++) {
-    if(replaceLRU < memory->blocks[row + i].RU) {
-      replaceLRU = memory->blocks[row + i].RU;
-      swapPos = i;
-    }
   }
-  fillResult = memory->blocks[row + swapPos].address;
-  memory->blocks[row + swapPos].address = addr;
-  updateLRU(memory, addr);
-  return fillResult;
 }
 
 void deleteL2Cache(struct cache *memory, uint32_t addr) {
@@ -373,6 +401,7 @@ void deleteL2Cache(struct cache *memory, uint32_t addr) {
       memory->blocks[row + i].valid = TRUE;
       memory->blocks[row + i].RU = memory->assocNum - 1;
       memory->blocks[row + i].address = 0;
+      memory->blocks[row + i].tag = 0;
       //memory->blocks[row + i].tag = 0;     
       return;
     }
