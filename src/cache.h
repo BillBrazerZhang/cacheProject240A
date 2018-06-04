@@ -11,6 +11,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <math.h>
 #include <ctype.h>
 #include <string.h>
@@ -89,7 +90,7 @@ struct cache {
   uint32_t tagBits;
 
   struct cacheBlock *blocks;
-  struct cache *victim;
+  //struct cache *victim;
   struct cache *nextLevel;
 };
 
@@ -103,43 +104,30 @@ void init_cache();
 
 void freeCache(struct cache *memory);
 
-// Perform a memory access through the icache interface for the address 'addr'
-// Return the access time for the memory operation
-//
-int checkHitMiss(struct cache* memory, uint32_t index, uint32_t tag);
-
 
 uint64_t accessCache(struct cache* memory, uint32_t addr, char mode);
 
 uint32_t icache_access(uint32_t addr);
 
+uint32_t dcache_access(uint32_t addr);
+
+
 uint32_t decodeTag(struct cache* memory, uint32_t addr);
 
 uint32_t decodeIndex(struct cache* memory, uint32_t addr);
 
-// Perform a memory access through the dcache interface for the address 'addr'
-// Return the access time for the memory operation
-//
-uint32_t dcache_access(uint32_t addr);
+int checkHitMiss(struct cache* memory, uint32_t addr);
 
-int accessVictimCache(struct cache *memory, uint32_t addr, uint32_t index, uint32_t tag, char mode);
+void updateLRU(struct cache *memory, uint32_t addr);
 
-//int createSpace(struct cache* memory, uint32_t index, uint32_t tag);
 
-void updateLRU(struct cache *memory, uint32_t index, uint32_t tag);
-
-int fillCache(struct cache *memory, uint32_t addr);
+uint32_t fillCache(struct cache *memory, uint32_t addr);
 
 void fillL2Cache(struct cache *memory, uint32_t addr);
 
 void deleteL2Cache(struct cache *memory, uint32_t addr);
 
-void fillOrDeleteL2(struct cache* memory, uint32_t addr, int isInclusive);
-
 void swapCache(struct cache* memory, uint32_t addr);
-// Perform a memory access to the l2cache for the address 'addr'
-// Return the access time for the memory operation
-//
-//uint32_t l2cache_access(uint32_t addr);
+
 
 #endif
