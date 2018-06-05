@@ -98,7 +98,7 @@ struct cache {
 //
 void initBlocks(struct cache* memory, uint32_t blockNum);
 
-void initCache(struct cache* memory, uint32_t blocksize, uint32_t cacheSets, uint32_t cacheAssoc, uint32_t hitTime, int isL2);
+struct cache* initCache(struct cache* memory, uint32_t blocksize, uint32_t cacheSets, uint32_t cacheAssoc, uint32_t hitTime, int isL2);
 
 void init_cache();
 

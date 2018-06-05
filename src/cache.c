@@ -78,7 +78,7 @@ void initBlocks(struct cache* memory, uint32_t blockNum) {
 }
 
 //init Cache structure
-void initCache(struct cache* memory, uint32_t blocksize, uint32_t cacheSets, uint32_t cacheAssoc, uint32_t hitTime, int isL2) {
+cache* initCache(struct cache* memory, uint32_t blocksize, uint32_t cacheSets, uint32_t cacheAssoc, uint32_t hitTime, int isL2) {
   //memory = (struct cache*)malloc(sizeof(struct cache));
   memory->blockSize = blocksize;
   memory->setNum = cacheSets;
@@ -98,9 +98,9 @@ void initCache(struct cache* memory, uint32_t blocksize, uint32_t cacheSets, uin
     memory->nextLevel = l2Cache;
     //printf("    assign L2Cache\n");
   }else{
-    return;
+    return memory;
   }
-  return;
+  return memory;
 }
 // Initialize the Cache Hierarchy
 //
@@ -126,14 +126,14 @@ init_cache()
   if(icacheAssoc > 0 && icacheSets > 0 && blocksize > 0) {
     iCache = (struct cache*)malloc(sizeof(struct cache));
     //memory->blocks = (struct cacheBlock*)malloc(sizeof(struct cacheBlock)*memory->setNum*memory->assocNum);
-    initCache(iCache, blocksize, icacheSets, icacheAssoc, icacheHitTime, FALSE);
+    iCache = initCache(iCache, blocksize, icacheSets, icacheAssoc, icacheHitTime, FALSE);
   }
 
   //dCache
   //printf("  dcache init begin...\n");
   if(dcacheAssoc > 0 && dcacheSets > 0 && blocksize > 0) {
     dCache = (struct cache*)malloc(sizeof(struct cache)); 
-    initCache(dCache, blocksize, dcacheSets, dcacheAssoc, dcacheHitTime, FALSE);
+    dCache = initCache(dCache, blocksize, dcacheSets, dcacheAssoc, dcacheHitTime, FALSE);
   }  
   //L2Cache
   if(iCache != NULL || dCache != NULL) {
@@ -141,7 +141,7 @@ init_cache()
     l2Cache = (struct cache*)malloc(sizeof(struct cache));
     if(dCache != NULL) dCache->nextLevel = l2Cache;
     if(iCache != NULL) iCache->nextLevel = l2Cache;
-    initCache(l2Cache, blocksize, l2cacheSets, l2cacheAssoc, l2cacheHitTime, TRUE);
+    l2Cache = initCache(l2Cache, blocksize, l2cacheSets, l2cacheAssoc, l2cacheHitTime, TRUE);
   }
   //printf("init successful!!!\n");
 
