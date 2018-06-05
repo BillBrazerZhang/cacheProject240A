@@ -71,9 +71,10 @@ extern uint64_t l2cachePenalties; // L2$ penalties
 
 struct cacheBlock {
   uint32_t tag;
-  uint32_t address; //address recorded
-  uint32_t RU; //recently used
+  uint32_t offset; //address recorded
+  uint32_t index;
   //bool dirty;
+  uint32_t RU; //recently used
   int valid;
 };
 
@@ -88,17 +89,17 @@ struct cache {
   uint32_t indexBits;
   uint32_t offsetBits;
   uint32_t tagBits;
+  uint8_t hierarchy;
 
-  struct cacheBlock *blocks;
+  struct cacheBlock **blocks;
   //struct cache *victim;
-  struct cache *nextLevel;
 };
 
 // Initialize the predictor
 //
-void initBlocks(struct cache* memory, uint32_t blockNum);
+void initBlocks(struct cache* memory, uint32_t cacheSets, uint32_t cacheAssoc);
 
-struct cache* initCache(struct cache* memory, uint32_t blocksize, uint32_t cacheSets, uint32_t cacheAssoc, uint32_t hitTime, int isL2);
+struct cache* initCache(uint32_t blocksize, uint32_t cacheSets, uint32_t cacheAssoc, uint32_t hitTime, uint8_t hierarchy);
 
 void init_cache();
 
@@ -116,7 +117,9 @@ uint32_t decodeTag(struct cache* memory, uint32_t addr);
 
 uint32_t decodeIndex(struct cache* memory, uint32_t addr);
 
-int checkHitMiss(struct cache* memory, uint32_t addr);
+uint32_t decodeAddr(struct cache* memory, uint32_t setIndex, uint32_t blockIndex);
+
+uint8_t checkHitMiss(struct cache* memory, uint32_t addr);
 
 void updateLRU(struct cache *memory, uint32_t addr);
 
@@ -129,6 +132,10 @@ void deleteL2Cache(struct cache *memory, uint32_t addr);
 
 void swapCache(struct cache* memory, uint32_t addr);
 
+void helper(uint32_t addr, struct cache *memory);
+
 void cleanSpace();
+
+uint32_t l2cacheAccess(uint32_t addr, char mode);
 
 #endif
